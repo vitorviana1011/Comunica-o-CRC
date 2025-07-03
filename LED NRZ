@@ -1,0 +1,88 @@
+#define NRZ_L 1
+#define NRZ_I 2
+#define ENCODING NRZ_L
+
+#define LED_PIN 11
+const int bit_duration = 150;
+String msg = "Versao final";
+
+int ledStateNRZI = LOW;
+
+byte calculateCRC8(const byte *data, size_t len) {
+  byte crc = 0x00;
+  while (len--) {
+    byte extract = *data++;
+    for (byte tempI = 8; tempI; tempI--) {
+      byte sum = (crc ^ extract) & 0x01;
+      crc >>= 1;
+      if (sum) { crc ^= 0x8C; }
+      extract >>= 1;
+    }
+  }
+  return crc;
+}
+
+void send_bit_nrzl(int bit) {
+  if (bit == 1) digitalWrite(LED_PIN, HIGH);
+  else digitalWrite(LED_PIN, LOW);
+  delay(bit_duration);
+}
+
+void send_bit_nrzi(int bit) {
+  if (bit == 1) {
+    ledStateNRZI = !ledStateNRZI;
+  }
+  digitalWrite(LED_PIN, ledStateNRZI);
+  delay(bit_duration);
+}
+
+void send_bit(int bit) {
+  if (ENCODING == NRZ_L) {
+    send_bit_nrzl(bit);
+  } else if (ENCODING == NRZ_I) {
+    send_bit_nrzi(bit);
+  }
+}
+
+void send_byte(char c) {
+  for (int i = 7; i >= 0; i--) {
+    int bit = (c >> i) & 1;
+    send_bit(bit);
+  }
+}
+
+void setup() {
+  pinMode(LED_PIN, OUTPUT);
+  Serial.begin(9600);
+  Serial.println(">>> Emissor Final (NRZ) Pronto.");
+}
+
+void loop() {
+  digitalWrite(LED_PIN, LOW);
+  ledStateNRZI = LOW;
+  Serial.println("---------------------------------");
+  Serial.println("Nova transmissao automatica em 5 segundos...");
+  delay(5000);
+
+  digitalWrite(LED_PIN, LOW);
+  delay(bit_duration * 5);
+
+  send_bit(1);
+  send_bit(0);
+  send_bit(1);
+  send_bit(0);
+  
+  byte tamanho_msg = msg.length();
+  send_byte((char)tamanho_msg);
+  
+  for (int i = 0; i < msg.length(); i++) {
+    send_byte(msg[i]);
+  }
+  
+  byte buffer[msg.length()];
+  msg.getBytes(buffer, msg.length() + 1);
+  byte crc_calculado = calculateCRC8(buffer, msg.length());
+  send_byte(crc_calculado);
+  
+  digitalWrite(LED_PIN, LOW);
+}
