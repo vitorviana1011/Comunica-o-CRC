@@ -2,9 +2,7 @@
 const int bit_duration = 150;
 String msg = "O que acontece em Las Vegas, fica em Las Vegas";
 
-/**
- * @brief Calcula o checksum CRC-8 para um array de dados.
- */
+// Calcula o checksum CRC-8 para um array de dados.
 byte calculateCRC8(const byte *data, size_t len) {
   byte crc = 0x00;
   while (len--) {
@@ -20,8 +18,8 @@ byte calculateCRC8(const byte *data, size_t len) {
   }
   return crc;
 }
-// --- FIM DO BLOCO ADICIONADO ---
 
+// Implementa o bit manchester
 void send_bit_manchester(int bit) {
   if (bit == 1) {
     digitalWrite(LED_PIN, LOW);
@@ -50,13 +48,14 @@ void setup() {
 }
 
 void loop() {
-  if (Serial.available() > 0) {
+  if (Serial.available() > 0) { // Espera um sinal (enter) do terminal para iniciar a transmissão
     Serial.read();
     Serial.println("Iniciando transmissao...");
 
     digitalWrite(LED_PIN, LOW);
     delay(bit_duration * 5);
 
+    // 4 bits iniciais de sincronia com o receptor
     send_bit_manchester(1);
     send_bit_manchester(1);
     send_bit_manchester(0);
@@ -68,14 +67,18 @@ void loop() {
     for (int i = 0; i < msg.length(); i++) {
       send_byte(msg[i]);
     }
-    
+
+    // Envio da mensagem em si
     byte buffer[msg.length()];
     msg.getBytes(buffer, msg.length() + 1);
     byte crc_calculado = calculateCRC8(buffer, msg.length());
+
+    // Chama função que calcula o CRC
     Serial.print("Enviando CRC: ");
     Serial.println(crc_calculado);
     send_byte(crc_calculado);
-    
+
+    // Desliga o LED e finaliza a mensagem
     digitalWrite(LED_PIN, LOW);
     Serial.println("\nTransmissao finalizada!");
   }
