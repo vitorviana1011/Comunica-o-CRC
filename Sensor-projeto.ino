@@ -105,6 +105,7 @@ void loop() {
     Serial.print("CRC Recebido do Emissor: "); Serial.println(crc_recebido);
     Serial.print("CRC Calculado Localmente: "); Serial.println(crc_calculado);
 
+    // Compara os 2 CRC para verificar a integridade da mensagem
     if (crc_calculado == crc_recebido) {
       Serial.println(">> STATUS: CRC OK! Mensagem integra.");
     } else {
