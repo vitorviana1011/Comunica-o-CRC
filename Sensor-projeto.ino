@@ -2,9 +2,7 @@
 const int bit_duration = 150;
 int limiar;
 
-/**
- * @brief Calcula o checksum CRC-8 para um array de dados.
- */
+// Calcula o checksum CRC-8 para um array de dados.
 byte calculateCRC8(const byte *data, size_t len) {
   byte crc = 0x00;
   while (len--) {
@@ -20,7 +18,6 @@ byte calculateCRC8(const byte *data, size_t len) {
   }
   return crc;
 }
-// --- FIM DO BLOCO ADICIONADO ---
 
 int ler_valor_luz() {
   if (analogRead(SENSOR_PIN) > limiar) return 1;
@@ -52,7 +49,9 @@ char readByte() {
 void setup() {
   pinMode(SENSOR_PIN, INPUT);
   Serial.begin(9600);
-  
+
+
+  // Bloco de Calibração do Sensor LDR
   Serial.println("\n=== INICIANDO CALIBRACAO ===");
   Serial.println("IMPORTANTE: Use o Emissor com LED sempre aceso.");
   delay(1000);
@@ -75,7 +74,7 @@ void setup() {
 void loop() {
   Serial.println("\n>>> MODO DE BUSCA: Procurando o primeiro '1'...");
 
-  while (readBit() != 1) {}
+  while (readBit() != 1) {} // Busca o primeiro bit 1 de inicio da transmissão
 
   Serial.println(">>> POSSIVEL START FRAME! Verificando sequencia 1100...");
   
@@ -84,10 +83,10 @@ void loop() {
   int b4 = readBit();
 
   if (b2 == 1 && b3 == 0 && b4 == 0) {
-    Serial.println(">>> Start Frame CONFIRMADO! Sincronizado!");
+    Serial.println(">>> Start Frame CONFIRMADO! Sincronizado!"); // Se for pego os 4 bits de sincronismo inicia a leitura
     
     byte tamanho_a_ler = readByte();
-    Serial.print("Comprimento recebido: "); Serial.println(tamanho_a_ler);
+    Serial.print("Comprimento recebido: "); Serial.println(tamanho_a_ler); // Le o tamanho enviado pelo transmissor
     
     String mensagem_recebida = "";
     byte buffer_msg[tamanho_a_ler];
@@ -98,7 +97,7 @@ void loop() {
       buffer_msg[i] = (byte)caractere;
     }
 
-    // --- BLOCO CRC ADICIONADO ---
+    // Chama CRC
     byte crc_recebido = readByte();
     byte crc_calculado = calculateCRC8(buffer_msg, tamanho_a_ler);
     
@@ -112,7 +111,6 @@ void loop() {
       Serial.println(">> STATUS: ERRO DE CRC! Mensagem corrompida.");
     }
     Serial.println("------------------------------------");
-    // --- FIM DO BLOCO ADICIONADO ---
 
     Serial.println("\n=== MENSAGEM RECEBIDA ===");
     Serial.println(mensagem_recebida);
@@ -121,5 +119,5 @@ void loop() {
     Serial.println(">>> Falso alarme. Voltando ao modo de busca...");
   }
   
-  delay(2000);
+  delay(2000); // Espera 2 segundos antes de buscar a proxima transmisão
 }
