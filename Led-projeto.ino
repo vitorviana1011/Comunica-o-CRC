@@ -62,7 +62,7 @@ void loop() {
     send_bit_manchester(0);
     
     byte tamanho_msg = msg.length();
-    send_byte((char)tamanho_msg);
+    send_byte((char)tamanho_msg); // Envia o tamanho da mensagem pro receptor
     
     for (int i = 0; i < msg.length(); i++) {
       send_byte(msg[i]);
@@ -76,7 +76,7 @@ void loop() {
     // Chama função que calcula o CRC
     Serial.print("Enviando CRC: ");
     Serial.println(crc_calculado);
-    send_byte(crc_calculado);
+    send_byte(crc_calculado); // Envia o CRC
 
     // Desliga o LED e finaliza a mensagem
     digitalWrite(LED_PIN, LOW);
