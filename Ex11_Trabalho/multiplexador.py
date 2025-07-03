@@ -1,43 +1,68 @@
 import numpy as np
 import soundfile as sf
+import os
 
 class Multiplexador:
     def __init__(self): # Construtor
         self.__fs = 44100    # Frequência de amostragem (Hz)
-        self.__duration = 3  # Duração do sinal (segundos)
-        self.__fc_A = 4000   # Portadora do sinal A        
-        self.__fc_B = 10000  # Portadora do sinal B
-        self.__fc_C = 14000  # Portadora do sinal C
+        self.__duration = 30  # Duração do sinal (segundos)
+        self.__fc = [4000,   # Portadora do sinal A
+                     10000,  # Portadora do sinal B
+                     14000]  # Portadora do sinal C
+        self.nomes_entrada = []  # Inicializar antes
+        self.sinais = []         # Inicializar antes
+        self.__rodou = 0
         self.__t = self.amostragem()
         self.__muxed = self.multiplexacao()
-
+ 
     def amostragem(self):
        t = np.linspace(0, self.__duration, int(self.__fs * self.__duration), endpoint=False)
        return t
     
     def geraSinais(self): #Sinais de áudio base
-        a = np.sin(2 * np.pi * 440 * self.__t)    # Sinal A: 440 Hz
-        b = np.sin(2 * np.pi * 880 * self.__t)    # Sinal B: 880 Hz
-        c = np.sin(2 * np.pi * 1760 * self.__t)   # Sinal C: 1760 Hz
-        return a, b, c
+        pasta = 'audios'
+        arquivos = os.listdir(pasta)
+        arquivos_audio = [f for f in arquivos][:3]
+        arquivos_audio.sort()
+        
+        # print(arquivos_audio)
+        
+        self.nomes_entrada = arquivos_audio
+        for nome_arquivo in arquivos_audio:
+            caminho_arquivo = os.path.join(pasta, nome_arquivo)
+            audio, _ = sf.read(caminho_arquivo)
+            if audio.ndim > 1:
+                audio = audio.mean(axis=1)
+            if len(audio) > len(self.__t):
+                audio = audio[:len(self.__t)]
+            elif len(audio) < len(self.__t):
+                audio = np.pad(audio, (0, len(self.__t) - len(audio)))
+            self.sinais.append(audio)
     
-    def modulacao(self, a, b, c): #  Modulação em amplitude (DSB)
-        a_mod = a * np.cos(2 * np.pi * self.__fc_A * self.__t)
-        b_mod = b * np.cos(2 * np.pi * self.__fc_B * self.__t)
-        c_mod = c * np.cos(2 * np.pi * self.__fc_C * self.__t)
-        return a_mod, b_mod, c_mod
+    def modulacao(self): #  Modulação em amplitude (DSB)
+        retorno = []
+        n = min(len(self.sinais), len(self.__fc))
+        for i in range(n):
+            f = self.sinais[i]
+            retorno.append(f * np.cos(2 * np.pi * self.__fc[i] * self.__t))
+        return retorno
 
-    def salvaSinais(self, a, b, c, muxed):
-        sf.write("muxed_audio.wav", muxed, self.__fs)
-        sf.write("audio_A_base.wav", a, self.__fs)
-        sf.write("audio_B_base.wav", b, self.__fs)
-        sf.write("audio_C_base.wav", c, self.__fs)
-        print("Multiplexação concluída e saiva no arquivo muxed_audio.wav.")
+    def salvaSinais(self, muxed):
+        # Garante que a pasta 'output' existe
+        os.makedirs("output", exist_ok=True)
+        sf.write("output/muxed_audio.wav", muxed, self.__fs)
+        for i, nome in enumerate(self.nomes_entrada):
+            nome_sem_extensao = os.path.splitext(nome)[0]
+            sf.write(f"output/{nome_sem_extensao}_base.wav", self.sinais[i], self.__fs)
+        print("Multiplexação concluída e salva no arquivo muxed_audio.wav.")
 
     def multiplexacao(self):
-        a, b, c = self.geraSinais()
-        a_mod, b_mod, c_mod = self.modulacao(a, b, c)
-        muxed = a_mod + b_mod + c_mod # Multiplexação
-        muxed /= np.max(np.abs(muxed)) #Normalizar para evitar clipping
-        self.salvaSinais(a, b, c, muxed)
-        return muxed
+        if self.__rodou == 0:
+            self.geraSinais()
+            muxed = self.modulacao()
+            muxed = sum(muxed) # Multiplexação
+            muxed /= np.max(np.abs(muxed)) #Normalizar para evitar clipping
+            self.salvaSinais(muxed)
+            self.__rodou = 1
+            return muxed
+        return None
