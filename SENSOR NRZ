@@ -1,0 +1,128 @@
+#define NRZ_L 1
+#define NRZ_I 2
+#define ENCODING NRZ_L
+
+#define SENSOR_PIN A0
+const int bit_duration = 150;
+int limiar;
+int lastLevelNRZI = 0;
+
+byte calculateCRC8(const byte *data, size_t len) {
+  byte crc = 0x00;
+  while (len--) {
+    byte extract = *data++;
+    for (byte tempI = 8; tempI; tempI--) {
+      byte sum = (crc ^ extract) & 0x01;
+      crc >>= 1;
+      if (sum) { crc ^= 0x8C; }
+      extract >>= 1;
+    }
+  }
+  return crc;
+}
+
+int ler_valor_luz() {
+  if (analogRead(SENSOR_PIN) > limiar) return 1;
+  else return 0;
+}
+
+int readBit_nrzl() {
+  delay(bit_duration);
+  return ler_valor_luz();
+}
+
+int readBit_nrzi() {
+  delay(bit_duration);
+  int currentLevel = ler_valor_luz();
+  int bit_lido = 0;
+  if (currentLevel != lastLevelNRZI) {
+    bit_lido = 1;
+  }
+  lastLevelNRZI = currentLevel;
+  return bit_lido;
+}
+
+int readBit() {
+  if (ENCODING == NRZ_L) {
+    return readBit_nrzl();
+  } else if (ENCODING == NRZ_I) {
+    return readBit_nrzi();
+  }
+  return -1;
+}
+
+char readByte() {
+  char char_recebido = 0;
+  for (int j = 0; j < 8; j++) {
+    int bit_atual = readBit();
+    char_recebido = (char_recebido << 1) | bit_atual;
+  }
+  return char_recebido;
+}
+
+void setup() {
+  pinMode(SENSOR_PIN, INPUT);
+  Serial.begin(9600);
+  
+  Serial.println("\n=== INICIANDO CALIBRACAO ===");
+  Serial.println("Use o Emissor com LED sempre aceso.");
+  delay(1000);
+  Serial.println("\nPASSO 1: ESCURO. Cubra o sensor e envie algo.");
+  while (Serial.available() == 0) {}
+  Serial.read();
+  int valor_escuro = analogRead(SENSOR_PIN);
+  Serial.print("Leitura no escuro: "); Serial.println(valor_escuro);
+  Serial.println("\nPASSO 2: LUZ. Aponte o LED para o LDR e envie algo.");
+  while (Serial.available() == 0) {}
+  Serial.read();
+  int valor_luz = analogRead(SENSOR_PIN);
+  Serial.print("Leitura com luz: "); Serial.println(valor_luz);
+  limiar = (valor_luz + valor_escuro) / 2;
+  Serial.println("---------------------------------");
+  Serial.print("CALIBRACAO FINALIZADA! Limiar = "); Serial.println(limiar);
+  Serial.println("---------------------------------");
+}
+
+void loop() {
+  Serial.println("\n>>> MODO DE BUSCA: Procurando Start Frame (1010)...");
+
+  while(readBit() != 1){}
+  lastLevelNRZI = 1;
+
+  int b2 = readBit();
+  int b3 = readBit();
+  int b4 = readBit();
+  
+  if (b2 == 0 && b3 == 1 && b4 == 0) {
+    Serial.println(">>> Start Frame CONFIRMADO! Sincronizado!");
+    
+    byte tamanho_a_ler = readByte();
+    
+    String mensagem_recebida = "";
+    byte buffer_msg[tamanho_a_ler];
+    
+    for (int i = 0; i < tamanho_a_ler; i++) {
+      char caractere = readByte();
+      mensagem_recebida += caractere;
+      buffer_msg[i] = (byte)caractere;
+    }
+
+    byte crc_recebido = readByte();
+    byte crc_calculado = calculateCRC8(buffer_msg, tamanho_a_ler);
+    
+    Serial.println("\n--- Verificacao de Integridade (CRC) ---");
+    if (crc_calculado == crc_recebido) {
+      Serial.println(">> STATUS: CRC OK! Mensagem integra.");
+    } else {
+      Serial.println(">> STATUS: ERRO DE CRC! Mensagem corrompida.");
+    }
+    
+    Serial.println("\n=== MENSAGEM RECEBIDA ===");
+    Serial.println(mensagem_recebida);
+
+  } else {
+    Serial.println(">>> Falso alarme. Reiniciando busca...");
+  }
+  
+  delay(2000);
+}
