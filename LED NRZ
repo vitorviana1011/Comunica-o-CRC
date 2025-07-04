@@ -1,88 +1,113 @@
+//define os tipos de codificação
 #define NRZ_L 1
 #define NRZ_I 2
 #define ENCODING NRZ_L
 
+//define o pin que o led estará inserido
 #define LED_PIN 11
-const int bit_duration = 150;
-String msg = "Versao final";
+const int bit_duration = 150;//duração padrão do bit para sincronizar
+String msg = "Versao grande final";//frase que será enviada
 
+//estado do led para a codificação NRZ-I
 int ledStateNRZI = LOW;
 
-byte calculateCRC8(const byte *data, size_t len) {
+//cálculo do CRC
+//0x8C (que representa o polinômio reverso de 0x31, ou seja, 𝑥^8+𝑥^5+𝑥^4+1)
+byte calculaCRC8(const byte *data, size_t len) {
   byte crc = 0x00;
   while (len--) {
-    byte extract = *data++;
+    byte extract = *data++;//bit atual
     for (byte tempI = 8; tempI; tempI--) {
+      //Faz o XOR entre crc e extract, mas só compara o bit menos significativo (LSB) com & 0x01.
       byte sum = (crc ^ extract) & 0x01;
+      //desloca o CRC para a direita
       crc >>= 1;
+      //Se sum == 1, faz XOR de crc com 0x8C. Isso é a aplicação do polinômio CRC-8
       if (sum) { crc ^= 0x8C; }
       extract >>= 1;
-    }
-  }
+    }//for
+  }//while
+  //retorna o valor final do CRC
   return crc;
-}
+}//calculaCRC8
 
+//caso a codificação for NRZ-L
 void send_bit_nrzl(int bit) {
-  if (bit == 1) digitalWrite(LED_PIN, HIGH);
-  else digitalWrite(LED_PIN, LOW);
+  if (bit == 1) digitalWrite(LED_PIN, HIGH);//se o bit for 1, envia luz acesa
+  else digitalWrite(LED_PIN, LOW);//se o bit for 0, envia luza apagada
   delay(bit_duration);
-}
+}//send_bit_nrzl
 
+//caso a codificação for NRZ-I
 void send_bit_nrzi(int bit) {
   if (bit == 1) {
-    ledStateNRZI = !ledStateNRZI;
-  }
-  digitalWrite(LED_PIN, ledStateNRZI);
+    ledStateNRZI = !ledStateNRZI;//se o bit for 1, o estado do bit é invertido, caso contrário, mantém o estado
+  }//if
+  digitalWrite(LED_PIN, ledStateNRZI);//é enviado o resultado dessa comparação
   delay(bit_duration);
-}
+}//send_bit_nrzi
 
+//determina qual o tipo de codificação será realizada
 void send_bit(int bit) {
   if (ENCODING == NRZ_L) {
+    //codificação NRZ-L
     send_bit_nrzl(bit);
   } else if (ENCODING == NRZ_I) {
+    //codificação NRZ-I
     send_bit_nrzi(bit);
-  }
-}
+  }//else if
+}//send_bit
 
+//tranforma o caractere em bits
 void send_byte(char c) {
   for (int i = 7; i >= 0; i--) {
+    //desloca o byte c à direita e compara com 1
     int bit = (c >> i) & 1;
-    send_bit(bit);
-  }
-}
+    send_bit(bit);//envia o resultado da comparação
+  }//for
+}//send_byte
 
+//--------------- INICIO DO CÒDIGO -------------------------//
 void setup() {
-  pinMode(LED_PIN, OUTPUT);
+  pinMode(LED_PIN, OUTPUT);//define o led como saída
   Serial.begin(9600);
   Serial.println(">>> Emissor Final (NRZ) Pronto.");
-}
+}//setup
 
+//loop do código
 void loop() {
+  //define o led como luz apagada e o estado do led como baixo
   digitalWrite(LED_PIN, LOW);
   ledStateNRZI = LOW;
   Serial.println("---------------------------------");
+  //transmissões são realizadas automaticamente para não ter interferencia manual de início da sincronização
   Serial.println("Nova transmissao automatica em 5 segundos...");
   delay(5000);
 
+  //define o led com luz alta para iniciar
   digitalWrite(LED_PIN, LOW);
   delay(bit_duration * 5);
 
+  //envia os 4 bits de sincronização    
   send_bit(1);
   send_bit(0);
   send_bit(1);
   send_bit(0);
   
+  //os outros 4 bits envia o tamanho da mensagem
   byte tamanho_msg = msg.length();
   send_byte((char)tamanho_msg);
   
+  //após enviar a sincronização e o tamanho, envia a mensagem definitiva, byte por byte
   for (int i = 0; i < msg.length(); i++) {
     send_byte(msg[i]);
   }
   
-  byte buffer[msg.length()];
-  msg.getBytes(buffer, msg.length() + 1);
-  byte crc_calculado = calculateCRC8(buffer, msg.length());
+  byte buffer[msg.length() + 1];
+  msg.getBytes(buffer, msg.length() + 1); //copia os bytes de msg para o buffer para enviar ao cálculo do CRC
+  byte crc_calculado = calculaCRC8(buffer, msg.length());
   send_byte(crc_calculado);
   
+  //define o led apagado para acabar o processo e reiniciar o loop
   digitalWrite(LED_PIN, LOW);
-}
+}//loop
